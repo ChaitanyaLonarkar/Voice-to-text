@@ -34,7 +34,11 @@ function App() {
     let isEffectActive = true;
 
     const startSession = async () => {
-      if (!audioStreamRef.current) {
+      // Important: Android and iOS browsers exclusively lock the microphone!
+      // If we attempt the `getUserMedia` hack on mobile, SpeechRecognition gets entirely blocked.
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+      if (!isMobile && !audioStreamRef.current) {
          try {
            audioStreamRef.current = await navigator.mediaDevices.getUserMedia({
              audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
@@ -73,8 +77,17 @@ function App() {
 
       recognition.onerror = (event) => {
         console.error('Speech recognition error:', event.error);
-        if (event.error === 'not-allowed') {
+        if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
           setIsListening(false);
+          
+          // Brave browser specific help message
+          if (navigator.brave && navigator.brave.isBrave) {
+             navigator.brave.isBrave().then(isBrave => {
+                 if (isBrave) {
+                     alert("Brave browser blocks Speech Recognition by default. Please go to Brave Settings -> Privacy and security -> Enable 'Use Google services for Push Messaging' to allow speech to text.");
+                 }
+             });
+          }
         }
       };
 
