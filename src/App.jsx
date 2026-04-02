@@ -4,7 +4,8 @@ const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecogni
 
 function App() {
   const [isListening, setIsListening] = useState(false);
-  const [transcript, setTranscript] = useState('');
+  const [pastTranscripts, setPastTranscripts] = useState('');
+  const [currentSessionTranscript, setCurrentSessionTranscript] = useState('');
   const [interimTranscript, setInterimTranscript] = useState('');
   const recognitionRef = useRef(null);
   const isIntentionalStopRef = useRef(false);
@@ -14,29 +15,26 @@ function App() {
       alert('Your browser does not support Speech Recognition. Please use Chrome or Safari.');
       return;
     }
-    
-    // We recreate the recognition instance only once
+
     const recognition = new SpeechRecognition();
     recognition.continuous = true;
     recognition.interimResults = true;
     recognition.lang = 'en-US';
 
     recognition.onresult = (event) => {
-      let final = '';
+      let finalForSession = '';
       let interim = '';
 
-      for (let i = event.resultIndex; i < event.results.length; i++) {
+      for (let i = 0; i < event.results.length; i++) {
         const transcriptSegment = event.results[i][0].transcript;
         if (event.results[i].isFinal) {
-          final += transcriptSegment + ' ';
+          finalForSession += transcriptSegment + ' ';
         } else {
           interim += transcriptSegment;
         }
       }
 
-      if (final) {
-        setTranscript((prev) => prev + final);
-      }
+      setCurrentSessionTranscript(finalForSession);
       setInterimTranscript(interim);
     };
 
@@ -48,13 +46,19 @@ function App() {
     };
 
     recognition.onend = () => {
-      // If we are still supposed to be listening and it ends unexpectedly, restart.
-      // Browsers often stop it after a certain period of silence.
+      // Session ended, so commit the current session's final text to pastTranscripts
+      setCurrentSessionTranscript((currentText) => {
+        if (currentText) {
+          setPastTranscripts((prev) => prev + currentText);
+        }
+        return ''; // Clear session transcript
+      });
+
       if (isListening && !isIntentionalStopRef.current) {
         try {
           recognition.start();
         } catch (error) {
-          console.error("Could not restart automatically. User might need to restart.", error);
+          console.error("Could not restart automatically.", error);
           setIsListening(false);
         }
       } else {
@@ -68,9 +72,8 @@ function App() {
       isIntentionalStopRef.current = true;
       recognition.stop();
     };
-  }, []);
+  }, [isListening]); // Added isListening to dependency array because onend uses it directly
 
-  // Sync listening state with recognition api
   useEffect(() => {
     if (!recognitionRef.current) return;
 
@@ -92,47 +95,58 @@ function App() {
   };
 
   const clearTranscript = () => {
-    setTranscript('');
+    setPastTranscripts('');
+    setCurrentSessionTranscript('');
     setInterimTranscript('');
   };
 
+  const displayTranscript = pastTranscripts + currentSessionTranscript;
+
   return (
-    <div className="container">
-      <header>
-        <h1>Voice Notes</h1>
-        <p className="subtitle">Minimalist Speech to Text</p>
-      </header>
+    <>
+      <div className="main-container">
+        <div className="container">
+          <header>
+            <h1>Voice Notes</h1>
+            <p className="subtitle">Minimalist Speech to Text</p>
+          </header>
 
-      <main>
-        <div className={`status-indicator ${isListening ? 'active' : ''}`}>
-          <div className="pulsating-dot"></div>
-          <span>{isListening ? 'Listening...' : 'Microphone Off'}</span>
-        </div>
-
-        <div className="controls">
-          <button 
-            className={`btn-primary ${isListening ? 'recording' : ''}`} 
-            onClick={toggleListening}
-          >
-            {isListening ? 'Stop Recording' : 'Start Recording'}
-          </button>
-          
-          <button className="btn-secondary" onClick={clearTranscript}>
-            Clear
-          </button>
-        </div>
-
-        <div className="transcript-box">
-          {!transcript && !interimTranscript && (
-            <div className="placeholder-text">
-              Press "Start Recording" and begin speaking.<br/>Your transcript will appear here...
+          <main>
+            <div className={`status-indicator ${isListening ? 'active' : ''}`}>
+              <div className="pulsating-dot"></div>
+              <span>{isListening ? 'Listening...' : 'Microphone Off'}</span>
             </div>
-          )}
-          <span className="final-transcript">{transcript}</span>
-          <span className="interim-transcript">{interimTranscript}</span>
+
+            <div className="controls">
+              <button
+                className={`btn-primary ${isListening ? 'recording' : ''}`}
+                onClick={toggleListening}
+              >
+                {isListening ? 'Stop Recording' : 'Start Recording'}
+              </button>
+
+              <button className="btn-secondary" onClick={clearTranscript}>
+                Clear
+              </button>
+            </div>
+
+            <div className="transcript-box">
+              {!displayTranscript && !interimTranscript && (
+                <div className="placeholder-text">
+                  Press "Start Recording" and begin speaking.<br />Your transcript will appear here...
+                </div>
+              )}
+              <span className="final-transcript">{displayTranscript}</span>
+              <span className="interim-transcript">{interimTranscript}</span>
+            </div>
+          </main>
+
+          <footer className="footer-credit">
+            made with ❤️ by <a href="https://chaitanyalonarkar.netlify.app/" target="_blank" rel="noopener noreferrer">Chaitanya Lonarkar</a>
+          </footer>
         </div>
-      </main>
-    </div>
+      </div>
+    </>
   );
 }
 

@@ -6,7 +6,8 @@
 
   color-scheme: dark;
   color: rgba(255, 255, 255, 0.9);
-  background-color: #050505; /* Deep dark background */
+  background-color: #050505;
+  /* Deep dark background */
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -16,11 +17,14 @@
 
 body {
   margin: 0;
-  display: flex;
-  place-items: center;
   min-width: 320px;
   min-height: 100vh;
   background: radial-gradient(circle at 50% 0%, #1a1a1a 0%, #050505 60%);
+}
+
+#root {
+  width: 100%;
+  min-height: 100vh;
 }
 
 .container {
@@ -29,6 +33,10 @@ body {
   padding: 2rem;
   width: 100%;
   box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: stretch;
 }
 
 header {
@@ -55,6 +63,14 @@ h1 {
   font-weight: 300;
   letter-spacing: 0.05em;
   text-transform: uppercase;
+}
+
+.main-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  min-height: 100vh;
 }
 
 main {
@@ -140,7 +156,7 @@ button {
   transition: color 0.3s ease;
   padding: 0.5rem;
   border-radius: 20px;
-  background: rgba(0,0,0,0.2);
+  background: rgba(0, 0, 0, 0.2);
   width: fit-content;
   margin: 0 auto;
   padding-right: 1rem;
@@ -168,9 +184,11 @@ button {
   0% {
     box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
   }
+
   70% {
     box-shadow: 0 0 0 12px rgba(239, 68, 68, 0);
   }
+
   100% {
     box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
   }
@@ -182,13 +200,15 @@ button {
   border-radius: 16px;
   padding: 2rem;
   min-height: 250px;
-  text-align: left;
+  text-align: center;
   font-size: 1.25rem;
   line-height: 1.7;
   white-space: pre-wrap;
   color: #ededed;
   overflow-y: auto;
   max-height: 50vh;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .placeholder-text {
@@ -222,16 +242,35 @@ button {
   background: #555;
 }
 
+.footer-credit {
+  text-align: center;
+  margin-top: 3rem;
+  font-size: 0.9rem;
+  color: #666;
+}
+
+.footer-credit a {
+  color: #a3a3a3;
+  text-decoration: none;
+  font-weight: 500;
+  transition: color 0.2s ease;
+}
+
+.footer-credit a:hover {
+  color: #ffffff;
+  text-decoration: underline;
+}
+
 @media (max-width: 600px) {
   .controls {
     flex-direction: column;
     width: 100%;
   }
-  
+
   .container {
     padding: 1rem;
   }
-  
+
   main {
     padding: 1.5rem;
     border-radius: 20px;
@@ -240,7 +279,7 @@ button {
   h1 {
     font-size: 2.5rem;
   }
-  
+
   .transcript-box {
     min-height: 200px;
     padding: 1.5rem;
