@@ -4,11 +4,13 @@ const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecogni
 
 function App() {
   const [isListening, setIsListening] = useState(false);
+  const [sessionKey, setSessionKey] = useState(0); 
   const [pastTranscripts, setPastTranscripts] = useState('');
   const [currentSessionTranscript, setCurrentSessionTranscript] = useState('');
   const [interimTranscript, setInterimTranscript] = useState('');
+  
+  const audioStreamRef = useRef(null);
   const recognitionRef = useRef(null);
-  const isIntentionalStopRef = useRef(false);
 
   useEffect(() => {
     if (!SpeechRecognition) {
@@ -16,79 +18,100 @@ function App() {
       return;
     }
 
-    const recognition = new SpeechRecognition();
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    recognition.lang = 'en-US';
+    if (!isListening) {
+       // Deep cleanup when user stops recording
+       if (recognitionRef.current) {
+          recognitionRef.current.onend = null;
+          recognitionRef.current.stop();
+       }
+       if (audioStreamRef.current) {
+          audioStreamRef.current.getTracks().forEach(t => t.stop());
+          audioStreamRef.current = null;
+       }
+       return;
+    }
 
-    recognition.onresult = (event) => {
-      let finalForSession = '';
-      let interim = '';
+    let isEffectActive = true;
 
-      for (let i = 0; i < event.results.length; i++) {
-        const transcriptSegment = event.results[i][0].transcript;
-        if (event.results[i].isFinal) {
-          finalForSession += transcriptSegment + ' ';
-        } else {
-          interim += transcriptSegment;
-        }
+    const startSession = async () => {
+      if (!audioStreamRef.current) {
+         try {
+           audioStreamRef.current = await navigator.mediaDevices.getUserMedia({
+             audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+           });
+         } catch (e) {
+           console.warn("Raw audio request failed", e);
+         }
       }
 
-      setCurrentSessionTranscript(finalForSession);
-      setInterimTranscript(interim);
-    };
+      if (!isEffectActive) return;
 
-    recognition.onerror = (event) => {
-      console.error('Speech recognition error:', event.error);
-      if (event.error === 'not-allowed') {
-        setIsListening(false);
-      }
-    };
+      // Create a COMPLETELY FRESH SpeechRecognition instance.
+      // This is the critical fix for the mobile browser bug where it caches memory 
+      // of previous sentences across restarts and prints multiple lines for a single speech.
+      const recognition = new SpeechRecognition();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = 'en-US';
 
-    recognition.onend = () => {
-      // Session ended, so commit the current session's final text to pastTranscripts
-      setCurrentSessionTranscript((currentText) => {
-        if (currentText) {
-          setPastTranscripts((prev) => prev + currentText);
+      recognition.onresult = (event) => {
+        let finalForSession = '';
+        let interim = '';
+        // Because the instance is fresh, iterating from 0 will ONLY fetch
+        // text from the current active spoken sentence without duplicating history.
+        for (let i = 0; i < event.results.length; i++) {
+          const transcriptSegment = event.results[i][0].transcript;
+          if (event.results[i].isFinal) {
+            finalForSession += transcriptSegment + ' ';
+          } else {
+            interim += transcriptSegment;
+          }
         }
-        return ''; // Clear session transcript
-      });
+        setCurrentSessionTranscript(finalForSession);
+        setInterimTranscript(interim);
+      };
 
-      if (isListening && !isIntentionalStopRef.current) {
-        try {
-          recognition.start();
-        } catch (error) {
-          console.error("Could not restart automatically.", error);
+      recognition.onerror = (event) => {
+        console.error('Speech recognition error:', event.error);
+        if (event.error === 'not-allowed') {
           setIsListening(false);
         }
-      } else {
-        setIsListening(false);
+      };
+
+      recognition.onend = () => {
+        // When it ends (mobile does this after every sentence), commit safely.
+        setCurrentSessionTranscript((currentText) => {
+          if (currentText) {
+            setPastTranscripts((prev) => prev + currentText);
+          }
+          return ''; // wipe session
+        });
+
+        if (isListening && isEffectActive) {
+          // Incrementing sessionKey causes a React unmount/remount of this effect,
+          // creating a brand new SpeechRecognition object and shedding the duplicate bug!
+          setSessionKey(k => k + 1);
+        }
+      };
+
+      recognitionRef.current = recognition;
+      try {
+        recognition.start();
+      } catch (e) {
+        console.error("recognition.start error", e);
       }
     };
 
-    recognitionRef.current = recognition;
+    startSession();
 
     return () => {
-      isIntentionalStopRef.current = true;
-      recognition.stop();
-    };
-  }, [isListening]); // Added isListening to dependency array because onend uses it directly
-
-  useEffect(() => {
-    if (!recognitionRef.current) return;
-
-    if (isListening) {
-      isIntentionalStopRef.current = false;
-      try {
-        recognitionRef.current.start();
-      } catch (e) {
-        console.error("Could not start. May already be started.", e);
+      isEffectActive = false;
+      if (recognitionRef.current) {
+        recognitionRef.current.onend = null; // Prevent restart loops
+        recognitionRef.current.stop();
       }
-    } else {
-      isIntentionalStopRef.current = true;
-      recognitionRef.current.stop();
-    }
-  }, [isListening]);
+    };
+  }, [isListening, sessionKey]);
 
   const toggleListening = () => {
     setIsListening((prev) => !prev);
